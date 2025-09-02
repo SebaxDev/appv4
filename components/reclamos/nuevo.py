@@ -48,9 +48,10 @@ def _verificar_reclamos_activos(nro_cliente, df_reclamos):
     
     # Convertir estados a minúsculas para comparación case-insensitive
     estados_activos = ["pendiente", "en curso"]
+    # Un reclamo se considera activo si está pendiente/en curso O si es una desconexión, que es un estado final pero bloqueante.
     reclamos_activos = reclamos_cliente[
         reclamos_cliente["Estado"].str.strip().str.lower().isin(estados_activos) |
-        (reclamos_cliente["Tipo de reclamo"].str.strip().str.lower() == "Desconexion a Pedido")
+        (reclamos_cliente["Tipo de reclamo"].str.strip().str.lower() == "desconexion a pedido")
     ]
     
     return reclamos_activos
@@ -222,32 +223,45 @@ def _procesar_envio_formulario(estado, nombre, direccion, telefono, sector, tipo
 
     with st.spinner("Guardando reclamo..."):
         try:
-            # Preparar datos del reclamo
+            # --- Preparación de Datos del Reclamo ---
             fecha_hora = ahora_argentina()
-            estado_reclamo = "Desconexión" if tipo_reclamo.lower() == "Desconexion a Pedido" else "Pendiente"
+            # Condición especial para el tipo de reclamo "Desconexion a Pedido"
+            # Se usa .strip() y .lower() para una comparación robusta.
+            if tipo_reclamo.strip().lower() == "desconexion a pedido":
+                estado_reclamo = "Desconexión"
+            else:
+                estado_reclamo = "Pendiente"
+
             id_reclamo = generar_id_unico()
 
+            # Construcción de la fila de datos para la hoja de cálculo.
+            # Esto asegura que los datos se insertan en el orden correcto definido por las columnas.
             fila_reclamo = [
-                format_fecha(fecha_hora),
-                estado['nro_cliente'],
-                sector_normalizado,
-                nombre.upper(),
-                direccion.upper(),
-                telefono.strip(),
-                tipo_reclamo,
-                detalles.upper(),
-                estado_reclamo,
-                "",  # Técnico (vacío inicialmente)
-                precinto.strip(),
-                atendido_por.upper(),
-                "", "", "",  # Campos adicionales
-                id_reclamo
+                format_fecha(fecha_hora),       # Fecha y hora
+                estado['nro_cliente'],          # Nº Cliente
+                sector_normalizado,             # Sector
+                nombre.upper().strip(),         # Nombre
+                direccion.upper().strip(),      # Dirección
+                telefono.strip(),               # Teléfono
+                tipo_reclamo,                   # Tipo de reclamo
+                detalles.upper().strip(),       # Detalles
+                estado_reclamo,                 # Estado (Pendiente o Desconexión)
+                "",                             # Técnico (se asigna después)
+                precinto.strip(),               # N° de Precinto
+                atendido_por.upper().strip(),   # Atendido por
+                "",                             # Fecha_formateada (se llena al cerrar)
+                "",                             # Campo vacío (placeholder si es necesario)
+                "",                             # Campo vacío (placeholder si es necesario)
+                id_reclamo                      # ID Reclamo
             ]
 
-            # Guardar reclamo
+            # --- Interacción con Google Sheets ---
+            # Se utiliza un manejador de API para encapsular la lógica de reintentos y errores.
             success, error = api_manager.safe_sheet_operation(
                 sheet_reclamos.append_row,
-                fila_reclamo
+                fila_reclamo,
+                body={'values': [fila_reclamo]},
+                is_batch=False # Aunque es una sola fila, es buena práctica ser explícito
             )
 
             if success:
