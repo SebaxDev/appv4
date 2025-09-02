@@ -2,6 +2,10 @@
 Componente de autenticación profesional estilo CRM
 Versión mejorada con diseño elegante
 """
+"""
+Componente de autenticación profesional estilo CRM
+Versión mejorada con diseño elegante
+"""
 import streamlit as st
 from utils.data_manager import safe_get_sheet_data
 from config.settings import (
@@ -11,6 +15,10 @@ from config.settings import (
 )
 import time
 from utils.styles import get_loading_spinner
+from passlib.context import CryptContext
+
+# Configura el contexto de hasheo de contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def init_auth_session():
     """Inicializa las variables de sesión"""
@@ -26,29 +34,37 @@ def logout():
     st.cache_data.clear()  # Limpiar caché de datos
 
 def verify_credentials(username, password, sheet_usuarios):
+    """Verifica las credenciales del usuario usando hasheo de contraseñas."""
     try:
         df_usuarios = safe_get_sheet_data(sheet_usuarios, COLUMNAS_USUARIOS)
         
         # Normalización de datos
         df_usuarios["username"] = df_usuarios["username"].str.strip().str.lower()
-        df_usuarios["password"] = df_usuarios["password"].astype(str).str.strip()
         
         # Manejo flexible de campo 'activo'
         df_usuarios["activo"] = df_usuarios["activo"].astype(str).str.upper().isin(["SI", "TRUE", "1", "SÍ", "VERDADERO"])
         
-        usuario = df_usuarios[
-            (df_usuarios["username"] == username.strip().lower()) & 
-            (df_usuarios["password"] == password.strip()) &
-            (df_usuarios["activo"])
-        ]
+        # Busca el usuario por nombre de usuario
+        user_data = df_usuarios[df_usuarios["username"] == username.strip().lower()]
         
-        if not usuario.empty:
-            return {
-                "username": usuario.iloc[0]["username"],
-                "nombre": usuario.iloc[0]["nombre"],
-                "rol": usuario.iloc[0]["rol"].lower(),
-                "permisos": PERMISOS_POR_ROL.get(usuario.iloc[0]["rol"].lower(), {}).get('permisos', [])
-            }
+        if not user_data.empty:
+            # Extrae la primera fila de datos del usuario
+            usuario = user_data.iloc[0]
+
+            # Verifica si el usuario está activo
+            if not usuario["activo"]:
+                return None  # Usuario inactivo
+
+            # Verifica la contraseña usando el hash
+            stored_hash = usuario["password_hash"]
+            if pwd_context.verify(password, stored_hash):
+                return {
+                    "username": usuario["username"],
+                    "nombre": usuario["nombre"],
+                    "rol": usuario["rol"].lower(),
+                    "permisos": PERMISOS_POR_ROL.get(usuario["rol"].lower(), {}).get('permisos', [])
+                }
+
     except Exception as e:
         st.error(f"Error en autenticación: {str(e)}")
     return None

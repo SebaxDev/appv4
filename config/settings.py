@@ -2,11 +2,15 @@
 Configuración central de la aplicación
 Versión 2.0 - Con gestión de usuarios y permisos
 """
+import streamlit as st
 
 # --------------------------
 # CONFIGURACIÓN DE GOOGLE SHEETS
 # --------------------------
-SHEET_ID = "13R_3Mdr25Jd-nGhK7CxdcbKkFWLc0LPdYrOLOY8sZJo"
+# Lee el ID de la hoja de cálculo desde los secretos de Streamlit para mayor seguridad.
+# Asegúrate de tener un archivo .streamlit/secrets.toml con la siguiente línea:
+# SHEET_ID = "tu-id-de-google-sheet"
+SHEET_ID = st.secrets["SHEET_ID"]
 WORKSHEET_RECLAMOS = "Reclamos"
 WORKSHEET_CLIENTES = "Clientes"
 WORKSHEET_USUARIOS = "usuarios"
@@ -47,8 +51,8 @@ COLUMNAS_CLIENTES = [
     "Teléfono", "N° de Precinto", "ID Cliente", "Última Modificación"
 ]
 
-COLUMNAS_USUARIOS = [  # Nueva estructura para usuarios
-    "username", "password", "nombre", "rol", "activo", "modo_oscuro"
+COLUMNAS_USUARIOS = [
+    "username", "password_hash", "nombre", "rol", "activo", "modo_oscuro"
 ]
 
 # --------------------------
